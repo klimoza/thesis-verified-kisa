@@ -3,8 +3,9 @@
 This is a diploma thesis template for students studying at the faculty of Computer Science, Constructor University. The template is based on the SPbSU math-mech thesis [template](https://www.papeeria.com/p/73174b63d0ffee4d37da4abda3647095?withLastOpenedFile=false). 
 
 ## To run in vscode with LaTeX workshop plugin:
+Download the [multi-command](https://marketplace.visualstudio.com/items?itemName=ryuta46.multi-command) plugin. 
 
-You have to update `settings.json` file, by adding this property: 
+Update `settings.json` file, by adding this property: 
 ```json
 "latex-workshop.latex.build.forceRecipeUsage": false,
 "latex-workshop.latex.recipes":[
