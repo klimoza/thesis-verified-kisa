@@ -61,13 +61,23 @@
 % Просто для шаблона
 \usepackage{lipsum}
 
+% Для вертикального отступа между абзацами
+\usepackage[skip=10pt, indent=0pt]{parskip}
+
+% Для создания пустых страниц 
+\newcommand*\emptypage{\newpage\null\thispagestyle{empty}\newpage}
+
 %% Отступ в первом абзаце
 \usepackage{indentfirst}
+
 %% Гиперссылки
-\usepackage[colorlinks=true,urlcolor=black,linkcolor=black,filecolor=black,citecolor=black]{hyperref}
+\usepackage{xcolor}
+\definecolor{BlueLUH}{cmyk}{1.0,0.7,0,0}
+\usepackage[colorlinks=true,urlcolor=black,linkcolor=black,filecolor=black,citecolor=BlueLUH]{hyperref}
 
 %% Включение графических файлов
 \usepackage{graphicx}
+
 %% we don't need to load graphicx since it will be loaded by xunicode (which is loaded by fontspec) 
 \usepackage[titletoc]{appendix}
 
