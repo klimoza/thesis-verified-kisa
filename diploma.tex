@@ -2,6 +2,31 @@
 \documentclass[14pt]{constructor-diploma}
 
 \usepackage[backend=bibtex]{biblatex}
+\usepackage{minted}
+\usepackage{mdframed}
+\usepackage{physics}
+\usepackage{amsmath}
+\usepackage{tikz}
+\usepackage{mathdots}
+\usepackage{yhmath}
+\usepackage{cancel}
+\usepackage{color}
+\usepackage{siunitx}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{amssymb}
+\usepackage{gensymb}
+\usepackage{tabularx}
+\usepackage{extarrows}
+\usepackage{booktabs}
+\usetikzlibrary{fadings}
+\usetikzlibrary{patterns}
+\usetikzlibrary{shadows.blur}
+\usetikzlibrary{shapes}
+
+
+\usemintedstyle{tango}
+
 \addbibresource{diploma.bib}
 
 \begin{document}
@@ -10,9 +35,9 @@
 % Если англоязычная титульная страница не нужна, то ее можно просто удалить.
 \filltitle{en}{
     chair              = {Bachelor of Science \\ Computer Science},
-    title              = {Equality saturation for solving equalities of relational expressions},
-    author             = {Andrei Kozyrev},
-    supervisorPosition = {professor},
+    title              = {Mechanized verification of pretty-printing library implemented in C},
+    author             = {Ivan Klimov},
+    supervisorPosition = {Prof.},
     supervisor         = {Anton Podkopaev},
     reviewerPosition   = {},
     reviewer           = {},
@@ -23,23 +48,263 @@
 \tableofcontents
 % У введения нет номера главы
 \section*{Introduction}
-\lipsum[1-2]
+Pretty-printing is a technique used to format code or data in a human-readable way.
+It involves adding indentation, line breaks, and other formatting elements to make code or data more visually organized and easier to understand.
+Particulary, we will be interested in pretty-printers, 
+which transform code from some abstract representation of a program(for example, AST)
+into comprehensible text that satisfies certain properties.
 
-\section{Chapter A}
-Nulla malesuada porttitor diam. Donec felis erat, congue non, volutpat at, tincidunt tristique, libero. Vivamus viverra fermentum felis. Donec nonummy pellentesque ante. Phasellus adipiscing semper elit. Proin fermentum massa ac quam. Sed diam turpis, molestie vitae, placerat a, molestie nec, leo.
-Maecenas lacinia~\cite{test}. Nam ipsum ligula, eleifend at, accumsan nec, suscipit a, ipsum. Morbi blandit ligula feugiat magna. Nunc eleifend consequat lorem. Sed lacinia nulla vitae enim. Pellentesque tincidunt purus vel magna. Integer non enim. Praesent euismod nunc eu purus. Donec bibendum quam in tellus. Nullam cursus pulvinar lectus. Donec et mi. Nam vulputate metus eu enim. Vestibulum pellentesque felis eu massa. Quisque ullamcorper placerat ipsum. Cras nibh. Morbi vel justo vitae lacus tincidunt ultrices. Lorem ipsum dolor sit amet, consectetuer adipiscing elit. In hac habitasse platea dictumst. Integer tempus convallis augue. Etiam facilisis. Nunc elementum fermentum wisi. Aenean placerat. Ut imperdiet, enim sed gravida sollicitudin, felis odio placerat quam, ac pulvinar elit purus eget enim. Nunc vitae tortor. Proin tempus nibh sit amet nisl. Vivamus quis tortor vitae risus porta vehicula.
+When code is formatted in a way that is easy to read,
+developers can quickly identify errors or inconsistencies, 
+making debugging and troubleshooting faster and more efficient.
+Additionally, well-formatted code is easier to modify, update, and maintain over time, 
+as changes can be made with confidence that they will not inadvertently affect other parts of the codebase.
 
-% Рисунок, размещенный с предпочтением "вверху страницы"
-\begin{figure}[t]
-\label{discontinuities}
-\centering
-\includegraphics{img/fig1.jpg}
-\caption{Discontinuity}
+Since pretty-printing is an essential tool for any developer looking to create code, many algorithms, using different techniques and different asymptotics to achieve the desired result,
+have emerged~\cite{oppen,azero,hughes,swierstra}. Particulary in the area of functional programming, algorithms based on pretty-printing combinators have appeared,
+allowing very natural way of working with text representation of AST. 
+Wadler~\cite{wadler} and Hughes'~\cite{hughes} libraries stand out among them, as they are included in the standard libraries of Ocaml and Haskell.
+However, these algorithms are not powerful enough in terms of expressive power, and are less efficient.
+
+A more flexible approach is pretty-printer combinators with choice,
+providing more freedom when working with combinators and thus allowing you to find the optimal solution.
+Pretty-printer combinators with choice (we will be calling them printers in further reading) were originally presented in the works of Pablo Azero and Doaitse Swierstra~\cite{azero, swierstra}, 
+however, their proposed algorithm has exponential complexity in the worst case. Significant impovements have been made in 
+libraries of Anton Podkopaev and Dmitri Boulytchev~\cite{podkopaev} and Jean-Philippe Bernardy~\cite{bernardy}, algorithms in which are polynomial.
+
+Bugs in algorithm implementations can lead to many problems, such as loss of information during formatting,
+mismatch between the resulting text and the given parameters, etc. Therefore, it is important to verify 
+the code that is used to format data.
+Among recent results: a Vladimir Korolikhins' verified library of printers~\cite{korolihin} on Coq, an interactive proof assistant, 
+providing a formal language to write mathematical definitions, executable algorithms and theorems together with an environment for semi-interactive development of machine-checked proofs. 
+The library includes different functional pretty-printing algorithms,
+starting from the simple but less efficient algorithm by Pablo Azero and ending 
+with more advanced polynomial algorithms by Anton Podkopaev and Dmitri Boulytchev~\cite{podkopaev} and Jean-Philippe Bernardy~\cite{bernardy}.
+
+However, all verified versions of pretty-printing libraries are functional. 
+Implementing a verified pretty-printer library in C and further expanding it with a polynomial algorithm 
+will allow us to achieve significant performance improvements. This will be the main goal of our work.
+
+\section{Goals and objectives}
+The goal of this work is to provide a verified implementation of pretty-printer combinators library in C. 
+The algorithm that we are going to implement and verify 
+is described in article of Swierstra et al.~\cite{swierstra}. 
+It has exponential complexity in the worst case, nevertheless, 
+it was chosen because it supports the extension of functionality, 
+as the algorithm is based on the same approach (pretty-printer combinators with choice) 
+as more advanced polynomial algorithms~\cite{podkopaev,bernardy}. Thus, the main objectives of this work are:
+
+\begin{enumerate}
+  \item Implement the pretty-printer library~\cite{swierstra} in C.
+  \item Prove that the C implementation of the core operations on formats satisfy its functional specification~\cite{korolihin}.
+  \item Extend the specification to sets of formats implemented as linked lists.
+\end{enumerate}
+
+
+\section{Related work}
+
+\subsection{Pretty-printing library}
+
+This sections aims to give detailed explanation of pretty-printing library~\cites{swierstra} and all the approaches 
+that are used in it, including detailed description of pretty-printer combinators.
+
+\label{section_brief}
+\subsubsection{Brief overview}
+The algorithm takes as input a representation of the text in the form of an AST, and for each node, 
+it constructs a list of possible formatted text pieces. 
+Each formatted text piece is stored in a structure called \textit{format}. 
+In addition to the text itself, the format contains some properties of the formatted data for ease of further manipulation with the structure.
+The combination of formats is done using \textit{pretty-printing combinators}, 
+which are essentially functions that take two formats as arguments
+and return a new format that represents formatted concatenation of the two original text pieces. 
+The algorithm uses printer combinators to iterate through all possible formatting options for the data. 
+In other words, the node of the AST is associated with not a single format, 
+but a list of formats that are all possible ways to format the data corresponding to that node. 
+In each of the AST leaves, there is list of a single element (the format, which is essentially a string), 
+and during recursive runs, all possible formats of the left and right children are iterated through, 
+and all possible combinations of combinators are applied to them. 
+At the end of the algorithm, we choose the most suitable format for us from the root node.
+
+\subsubsection{Description of the \texttt{format} structure}
+The atomic structure when working with printer combinators is the \texttt{format} structure. 
+This structure represents pre-formatted text that includes parameters of its height and width, as well as \texttt{to\_text} function, 
+which allows obtaining its text representation. The \texttt{to\_text} function takes two arguments: 
+\texttt{shift}, which specifies the desired shift of the text representation, and \texttt{line}, 
+which will be concatenated with our text representation at the end.
+
+\begin{figure}[H]
+\definecolor{bg}{rgb}{0.95,0.95,0.95}
+
+\begin{mdframed}[backgroundcolor=bg]
+\begin{minted}[fontsize=\small]{coq}
+Record t : Type := T {
+  height           : nat;
+  first_line_width : nat;
+  middle_width     : nat;
+  last_line_width  : nat;
+  to_text          : nat -> string -> string
+}.
+\end{minted}
+\end{mdframed}
+\caption{\texttt{Format} definition in the reference library~\cite{korolihin}}
 \end{figure}
 
+Let's give an example of a specific format and the information it contains. 
+Let's say we want to format the following piece of \texttt{C++} code:
+
+\begin{figure}[H]
+\definecolor{bg}{rgb}{0.95,0.95,0.95}
+
+\begin{mdframed}[backgroundcolor=bg]
+\begin{minted}[fontsize=\small]{cpp}
+int s;
+if(condition1) { s = 1; } else if(condition2) { s = 2; }
+\end{minted}
+\end{mdframed}
+\caption{Sample of \texttt{C++} code}
+\end{figure}
+
+This code can be formatted in many different ways. 
+Let's consider the format \texttt{G} and say that it contains the following representation of our code:
+
+\begin{figure}[H]
+\definecolor{bg}{rgb}{0.95,0.95,0.95}
+
+\begin{mdframed}[backgroundcolor=bg]
+\begin{minted}[fontsize=\small]{cpp}
+int s;
+if(condition1) { 
+  s = 1; 
+} else if(condition2) { 
+  s = 2; 
+}
+\end{minted}
+\end{mdframed}
+\caption{Formatted \texttt{C++} code}
+\end{figure}
+
+Then our format will have the following values for its fields:
+
+\begin{figure}[H]
+\definecolor{bg}{rgb}{0.95,0.95,0.95}
+\begin{mdframed}[backgroundcolor=bg]
+\begin{minted}[fontsize=\small]{coq}
+G = 
+{|
+  height := 6;
+  first_line_width := 6;
+  middle_width := 23;
+  last_line_width := 1;
+  to_text := ...
+|}
+\end{minted}
+\end{mdframed}
+\caption{Format \texttt{G}}
+\end{figure}
+
+The implementation of the \texttt{to\_text} function in this case is too complicated to include it in the text of this thesis. 
+However, the example of using this function should give readers an intuition about how it works:
+\begin{figure}[H]
+\definecolor{bg}{rgb}{0.95,0.95,0.95}
+    
+\begin{mdframed}[backgroundcolor=bg]
+\begin{minted}[fontsize=\small]{cpp}
+// G.to_text 0 " else {\n  assert(false);\n}" ==>
+int s;
+if(condition1) { 
+  s = 1; 
+} else if(condition2) { 
+  s = 2; 
+} else {
+  assert(false);
+}
+\end{minted}
+\end{mdframed}
+\caption{Example of using the \texttt{to\_text} function}
+\end{figure}
+
+
+\label{section_combinators}
+\subsubsection{Description of pretty-printer combinators}
+
+Pretty-printer combinator is a function that take a format as input and return a new format that contains data from the original formats and, 
+obviously, has a strictly larger size than each of them. There are three different combinators, 
+let's take a closer look at each of them:
+
+\begin{figure}[H]
+\include{img/combinators.tex}
+\caption{Pretty-printer combinators}
+\end{figure}
+
+In the picture, you can see various examples of applying combinators to formats 
+and the corresponding characteristics of the resulting format 
+(the height, width of the first line, width of the last line, and width of the data in the middle). 
+In general, the fill combinator is not present in article~\cite{swierstra},
+however, it was decided to include it in this work because it was introduced 
+in article~\cites{podkopaev} and will be needed in case of expanding the library 
+with a polynomial algorithm.
+
+\subsubsection{Detailed description of the algorithm}
+Previously we gave a brief description of the algorithm used, 
+now let's describe each step of the algorithm in more detail.
+
+The algorithm is given a recursive structure called \texttt{Doc}, which is a tree, 
+with each node containing one of several combinators.
+
+\begin{figure}[H]
+\definecolor{bg}{rgb}{0.95,0.95,0.95}
+\begin{mdframed}[backgroundcolor=bg]
+\begin{minted}[fontsize=\small]{coq}
+Inductive Doc : Type :=
+| Text (s: string)
+| Indent (t: nat) (d: Doc)
+| Beside (d: Doc) (d: Doc)
+| Above (d: Doc) (d: Doc)
+| Choice (d: Doc) (d: Doc)
+| Fill (d: Doc) (d: Doc) (s: nat).
+\end{minted}
+\end{mdframed}
+\caption{\texttt{Doc} definition in the reference library~\cite{korolihin}}
+\end{figure}
+
+Our algorithm will recursively descend through this structure, 
+and depending on the type of node, it will process the data received from the child nodes in different ways:
+\begin{itemize}
+  \item \texttt{Text} --- a leaf node of the tree that contains a single format.
+    Text takes the string from which the format that will represent the data in the leaf is constructed. 
+    The string is simply broken down into different lines, from which format characteristics such as height and width are calculated.
+    As we mentioned earlier in the brief overview, each node of the tree corresponds to a list of possible formats. 
+    Therefore, the Text node will correspond to a list containing a single element --- the resulting format.
+  \item \texttt{Indent} --- a node that takes the list of formats obtained from the child node 
+    and shifts all the formats to the right by \texttt{t}. In other words, 
+    at the beginning of each line, it adds \texttt{t} spaces and increases all parameters related to width by \texttt{t}. 
+    This is the only type of node that does not change the size of the list, but simply modifies the existing formats slightly.
+  \item \texttt{Choice} --- a node that gives us flexibility in using combinators. 
+    It does not modify the formats obtained from the child nodes, but takes two lists, 
+    concatenates them, and passes them up. Thanks to the \texttt{Choice} node, 
+    we can choose for ourselves where and which types of combinators to iterate over, 
+    instead of trying to use formats that are unsuitable for us by default.
+  \item \texttt{Beside, Above, Fill} --- nodes that take two lists of formats received from the child nodes 
+    and apply the corresponding combinator to them pairwise. 
+    The detailed operation of each combinator is described in details in section \ref{section_combinators}.
+\end{itemize}
+
+The algorithm recursively descends through the tree, applying corresponding operations for each node. 
+As a result, we obtain a list of suitable formats that are located in the root node. 
+We remove from this list all formats that do not fit the constraints of width or height 
+and take any of the remaining formats. This format will be the final formatted version of our initial text.
+
+\subsection{Mechanized verification}
+
+
+\section{Implementation in C}
+
+\section{Correctness of printer combinators}
+
+\section{Correctness of the algorithm}
+
 % У заключения нет номера главы
-\section*{Conclusion}
-\lipsum[1-2]
+\section*{Conclusion and future work}
 
 \setmonofont[Mapping=tex-text]{CMU Typewriter Text}
 % \bibliographystyle{plain}
