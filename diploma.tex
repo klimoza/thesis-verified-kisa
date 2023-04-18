@@ -41,8 +41,6 @@
     supervisor         = {Anton Podkopaev},
     reviewerPosition   = {},
     reviewer           = {},
-    chairHeadPosition  = {professor},
-    chairHead          = {Christobal Junta},
 }
 \maketitle
 \tableofcontents
@@ -58,16 +56,17 @@ When code is formatted in a way that is easy to read,
 developers can quickly identify errors or inconsistencies, 
 making debugging and troubleshooting faster and more efficient.
 Additionally, well-formatted code is easier to modify, update, and maintain over time, 
-as changes can be made with confidence that they will not inadvertently affect other parts of the codebase.
+as changes can be made with confidence that they will not accidentally affect other parts of the codebase.
 
-Since pretty-printing is an essential tool for any developer looking to create code, many algorithms, using different techniques and different asymptotics to achieve the desired result,
-have emerged~\cite{oppen,azero,hughes,swierstra}. Particulary in the area of functional programming, algorithms based on pretty-printing combinators have appeared,
+Since pretty-printing become an essential tool for any developer looking to create code, many algorithms, using different techniques and different asymptotics to achieve the desired result,
+have emerged~\cite{oppen,azero,hughes,swierstra,podkopaev,bernardy}. Particulary in the area of functional programming, algorithms based on pretty-printing combinators have appeared,
 allowing very natural way of working with text representation of AST. 
 Wadler~\cite{wadler} and Hughes'~\cite{hughes} libraries stand out among them, as they are included in the standard libraries of Ocaml and Haskell.
 However, these algorithms are not powerful enough in terms of expressive power, and are less efficient.
 
 A more flexible approach is pretty-printer combinators with choice,
-providing more freedom when working with combinators and thus allowing you to find the optimal solution.
+providing more freedom when working with combinators and thus allowing to put more constraints on the solutions obtained
+as a result of the algorithm.
 Pretty-printer combinators with choice (we will be calling them printers in further reading) were originally presented in the works of Pablo Azero and Doaitse Swierstra~\cite{azero, swierstra}, 
 however, their proposed algorithm has exponential complexity in the worst case. Significant impovements have been made in 
 libraries of Anton Podkopaev and Dmitri Boulytchev~\cite{podkopaev} and Jean-Philippe Bernardy~\cite{bernardy}, algorithms in which are polynomial.
@@ -82,8 +81,11 @@ starting from the simple but less efficient algorithm by Pablo Azero and ending
 with more advanced polynomial algorithms by Anton Podkopaev and Dmitri Boulytchev~\cite{podkopaev} and Jean-Philippe Bernardy~\cite{bernardy}.
 
 However, all verified versions of pretty-printing libraries are functional. 
-Implementing a verified pretty-printer library in C and further expanding it with a polynomial algorithm 
-will allow us to achieve significant performance improvements. This will be the main goal of our work.
+% Implementing a verified pretty-printer library in C and further expanding it with a polynomial algorithm 
+% will allow us to achieve significant performance improvements. This will be the main goal of our work.
+Implementing a verified pretty-printer library in C will allow us to optimize the written code more efficiently, and in the future 
+expand the library with a polynomial algorithm, which will result in hopefully more perfomant implementation than its existing functional counterparts.
+This will be the main goal of our work.
 
 \section{Goals and objectives}
 The goal of this work is to provide a verified implementation of pretty-printer combinators library in C. 
@@ -92,12 +94,23 @@ is described in article of Swierstra et al.~\cite{swierstra}.
 It has exponential complexity in the worst case, nevertheless, 
 it was chosen because it supports the extension of functionality, 
 as the algorithm is based on the same approach (pretty-printer combinators with choice) 
-as more advanced polynomial algorithms~\cite{podkopaev,bernardy}. Thus, the main objectives of this work are:
+as more advanced polynomial algorithms~\cite{podkopaev,bernardy}. 
+
+After implementing the library in C, we will need to verify it. 
+To do this, we will prove the correspondence between our library and Korolikhin's verified library~\cite{korolihin} on Coq (which was chosen due to the absence of analogs, as well as the presence in this library of the algorithm we are going to implement).
+We will divide this part into two subtasks. 
+
+Firstly, we will need to verify the basic structures for working with printer combinators, as well as the printer combinators themselves. 
+This will allow us to already at that point be able to extend the library with any algorithm based on pretty-printer combinators.
+
+Secondly, we will need to verify the algorithm itself, in which at that point the printer combinators will already be verified and 
+it will only remain to prove statements about the highest-level functions that manipulate printer combinators.
+Thus, the main objectives of this work are:
 
 \begin{enumerate}
   \item Implement the pretty-printer library~\cite{swierstra} in C.
-  \item Prove that the C implementation of the core operations on formats satisfy its functional specification~\cite{korolihin}.
-  \item Extend the specification to sets of formats implemented as linked lists.
+  \item Prove that the C implementation of the core operations on formats and combinators satisfy its functional specification~\cite{korolihin}.
+  \item Extend the proof to verify the correctness of the chosen algorithm~\cite{swierstra}.
 \end{enumerate}
 
 
@@ -105,39 +118,34 @@ as more advanced polynomial algorithms~\cite{podkopaev,bernardy}. Thus, the main
 
 \subsection{Pretty-printing library}
 
-This sections aims to give detailed explanation of pretty-printing library~\cites{swierstra} and all the approaches 
-that are used in it, including detailed description of pretty-printer combinators.
+This sections aims to give detailed explanation of pretty-printing library, described in article by Swierstra et al.~\cites{swierstra} 
+and all the approaches that are used in it, including detailed description of pretty-printer combinators.
 
-\label{section_brief}
-\subsubsection{Brief overview}
-The algorithm takes as input a representation of the text in the form of an AST, and for each node, 
-it constructs a list of possible formatted text pieces. 
-Each formatted text piece is stored in a structure called \textit{format}. 
-In addition to the text itself, the format contains some properties of the formatted data for ease of further manipulation with the structure.
-The combination of formats is done using \textit{pretty-printing combinators}, 
-which are essentially functions that take two formats as arguments
-and return a new format that represents formatted concatenation of the two original text pieces. 
-The algorithm uses printer combinators to iterate through all possible formatting options for the data. 
-In other words, the node of the AST is associated with not a single format, 
-but a list of formats that are all possible ways to format the data corresponding to that node. 
-In each of the AST leaves, there is list of a single element (the format, which is essentially a string), 
-and during recursive runs, all possible formats of the left and right children are iterated through, 
-and all possible combinations of combinators are applied to them. 
-At the end of the algorithm, we choose the most suitable format for us from the root node.
+% \label{section_brief}
+% \subsubsection{Brief overview}
+% The algorithm takes as input a representation of the text in the form of an AST, and for each node, 
+% it constructs a list of possible formatted text pieces. 
+% Each formatted text piece is stored in a structure called \textit{format}. 
+% In addition to the text itself, the format contains some properties of the formatted data for ease of further manipulation with the structure.
+% The combination of formats is done using \textit{pretty-printing combinators}, 
+% which are essentially functions that take two formats as arguments
+% and return a new format that represents formatted concatenation of the two original text pieces. 
+% The algorithm uses printer combinators to iterate through all possible formatting options for the data. 
+% In other words, the node of the AST is associated with not a single format, 
+% but a list of formats that are all possible ways to format the data corresponding to that node. 
+% In each of the AST leaves, there is list of a single element (the format, which is essentially a string), 
+% and during recursive runs, all possible formats of the left and right children are iterated through, 
+% and all possible combinations of combinators are applied to them. 
+% At the end of the algorithm, we choose the most suitable format for us from the root node.
 
 \subsubsection{Description of the \texttt{format} structure}
 The atomic structure when working with printer combinators is the \texttt{format} structure. 
-This structure represents pre-formatted text that includes parameters of its height and width, as well as \texttt{to\_text} function, 
-which allows obtaining its text representation. The \texttt{to\_text} function takes two arguments: 
-\texttt{shift}, which specifies the desired shift of the text representation, and \texttt{line}, 
-which will be concatenated with our text representation at the end.
-
 \begin{figure}[H]
 \definecolor{bg}{rgb}{0.95,0.95,0.95}
 
 \begin{mdframed}[backgroundcolor=bg]
 \begin{minted}[fontsize=\small]{coq}
-Record t : Type := T {
+Record format : Type := Format {
   height           : nat;
   first_line_width : nat;
   middle_width     : nat;
@@ -147,10 +155,28 @@ Record t : Type := T {
 \end{minted}
 \end{mdframed}
 \caption{\texttt{Format} definition in the reference library~\cite{korolihin}}
+\label{fig:format}
 \end{figure}
+This structure represents pre-formatted text that includes the following parameters:
 
-Let's give an example of a specific format and the information it contains. 
-Let's say we want to format the following piece of \texttt{C++} code:
+\begin{enumerate}
+  \item \textbf{Height} of the format. This parameter is used to determine the number of lines in the formatted text.
+  \item \textbf{First line width} of the format. This parameter is used to determine the width of the first line of the formatted text.
+  \item \textbf{Middle line width} of the format. This parameter is used to determine the maximum width of all the lines between first and last lines.
+  If there's only two lines in the formatted text, then this parameter is equal to the first line width. 
+  If there's only one line in the formatted text, then this parameter is equal to the width of this line.
+  \item \textbf{Last line width} of the format. This parameter is used to determine the width of the last line of the formatted text.
+  \item \textbf{\texttt{to\_text}} function allows obtaining text representation of the format. 
+  The \texttt{to\_text} function takes two arguments: 
+  \texttt{shift}, which specifies the desired shift of the text representation, and \texttt{line}, 
+  which will be concatenated with our text representation at the end.
+  In particular, by taking a shift equal to zero and an empty string as a line, we obtain an exact textual representation of the formatted data.
+
+
+\end{enumerate}
+
+As an illustration, we'll give an example of a specific format and the information it contains. 
+Suppose we want to format the following piece of \texttt{C++} code:
 
 \begin{figure}[H]
 \definecolor{bg}{rgb}{0.95,0.95,0.95}
@@ -171,7 +197,7 @@ Let's consider the format \texttt{G} and say that it contains the following repr
 \definecolor{bg}{rgb}{0.95,0.95,0.95}
 
 \begin{mdframed}[backgroundcolor=bg]
-\begin{minted}[fontsize=\small]{cpp}
+\begin{minted}[fontsize=\small,linenos]{cpp}
 int s;
 if(condition1) { 
   s = 1; 
@@ -181,10 +207,76 @@ if(condition1) {
 \end{minted}
 \end{mdframed}
 \caption{Formatted \texttt{C++} code}
+\label{fig:format_text}
 \end{figure}
 
-Then our format will have the following values for its fields:
+We will go through all the format's fields and calculate values for them:
 
+\begin{enumerate}
+  \item \texttt{G.height}. As shown in the Figure~\ref{fig:format_text}, the amount of lines in 
+  the formatted text is equal to 6. Therefore, the height of our format is equal to 6.
+  \item \texttt{G.first\_line\_width}. As shown in the Figure~\ref{fig:format_text}, 
+  the first line of the text is \mintinline{cpp}{int s;}. It's width is equal to 6, so 
+  the first line width of our format is also equal to 6.
+  \item \texttt{G.middle\_width}. As shown in the Figure~\ref{fig:format_text}, there are 4
+  lines that are between the first one and the last one:
+\begin{figure}[H]
+\begin{minted}[fontsize=\small,linenos]{cpp}
+if(condition1) { 
+  s = 1; 
+} else if(condition2) { 
+  s = 2; 
+\end{minted}
+\end{figure}
+\vspace*{-25pt}
+  The third one obviously has the maximuum width among them, and it's width equal to 23. So the middle line width 
+  of our format is also equal to 23.
+  \item \texttt{G.last\_line\_width}. As shown in the Figure~\ref{fig:format_text}, the last line of the 
+  text is \}. It's width is equal to 1, so the last line width of our format is also equal to 1.
+  \item \texttt{G.to\_text}. As we discussed earlier, the \texttt{to\_text} function with default arguments returns the formatted text, shown 
+  in Figure~\ref{fig:format_text}. 
+  Changing the first parameter affects the indentation of the entire returned text, and changing the second parameter allows modifying the entire text by adding an arbitrary string to the end of it. 
+  Later, we will show that these parameters are not necessary for a work with formats, nevertheless, it is important to understand their semantics as they are used in the reference library.
+
+\begin{figure}[H]
+\begin{minipage}{0.5\textwidth}
+\definecolor{bg}{rgb}{0.95,0.95,0.95}
+
+\begin{mdframed}[backgroundcolor=bg]
+\begin{minted}[fontsize=\small]{cpp}
+int s;
+if(condition1) { 
+  s = 1; 
+} else if(condition2) { 
+  s = 2; 
+}
+\end{minted}
+\end{mdframed}
+% \vspace*{-35pt}
+\end{minipage}
+\begin{minipage}{0.5\textwidth}
+\definecolor{bg}{rgb}{0.95,0.95,0.95}
+
+\begin{mdframed}[backgroundcolor=bg]
+\begin{minted}[fontsize=\small]{cpp}
+    int s;
+    if(condition1) { 
+      s = 1; 
+    } else if(condition2) { 
+      s = 2; 
+    } else {
+\end{minted}
+\end{mdframed}
+\end{minipage}
+% \vspace*{30pt}
+\caption{\texttt{G.to\_text(0, EmptyString)} and \texttt{G.to\_text(5, " else \{")}}
+\label{fig:to_text_example}
+\end{figure}
+\end{enumerate}
+
+Internal representation of our concrete format is shown in Figure~\ref{fig:format_example}.
+We didn't include the specific implementation of \texttt{to\_text} function as it can be implemented 
+in many different ways and it's more important to understand its semantics.
 \begin{figure}[H]
 \definecolor{bg}{rgb}{0.95,0.95,0.95}
 \begin{mdframed}[backgroundcolor=bg]
@@ -200,43 +292,25 @@ G =
 \end{minted}
 \end{mdframed}
 \caption{Format \texttt{G}}
-\end{figure}
-
-The implementation of the \texttt{to\_text} function in this case is too complicated to include it in the text of this thesis. 
-However, the example of using this function should give readers an intuition about how it works:
-\begin{figure}[H]
-\definecolor{bg}{rgb}{0.95,0.95,0.95}
-    
-\begin{mdframed}[backgroundcolor=bg]
-\begin{minted}[fontsize=\small]{cpp}
-// G.to_text 0 " else {\n  assert(false);\n}" ==>
-int s;
-if(condition1) { 
-  s = 1; 
-} else if(condition2) { 
-  s = 2; 
-} else {
-  assert(false);
-}
-\end{minted}
-\end{mdframed}
-\caption{Example of using the \texttt{to\_text} function}
+\label{fig:format_example}
 \end{figure}
 
 
 \label{section_combinators}
 \subsubsection{Description of pretty-printer combinators}
-
-Pretty-printer combinator is a function that take a format as input and return a new format that contains data from the original formats and, 
-obviously, has a strictly larger size than each of them. There are three different combinators, 
-let's take a closer look at each of them:
-
 \begin{figure}[H]
+\begin{center}
 \include{img/combinators.tex}
 \caption{Pretty-printer combinators}
+\label{fig:combinators}
+\end{center}
 \end{figure}
+Pretty-printer combinator is a function that takes a format as input and returns a new format that contains data from the original formats and, 
+obviously, has a strictly larger size than each of them. 
+There are three different combinators: \texttt{add\_above}, \texttt{add\_beside} and 
+\texttt{add\_fill}.
 
-In the picture, you can see various examples of applying combinators to formats 
+In Figure~\ref{fig:combinators}, you can see examples of applying combinators to formats 
 and the corresponding characteristics of the resulting format 
 (the height, width of the first line, width of the last line, and width of the data in the middle). 
 In general, the fill combinator is not present in article~\cite{swierstra},
@@ -247,9 +321,8 @@ with a polynomial algorithm.
 \subsubsection{Detailed description of the algorithm}
 Previously we gave a brief description of the algorithm used, 
 now let's describe each step of the algorithm in more detail.
-
 The algorithm is given a recursive structure called \texttt{Doc}, which is a tree, 
-with each node containing one of several combinators.
+with each node containing one of several actions.
 
 \begin{figure}[H]
 \definecolor{bg}{rgb}{0.95,0.95,0.95}
@@ -295,9 +368,541 @@ We remove from this list all formats that do not fit the constraints of width or
 and take any of the remaining formats. This format will be the final formatted version of our initial text.
 
 \subsection{Mechanized verification}
+This section is dedicated to tools for automated verification of programs in C.
 
+\subsubsection{Separation Logic}
+The standard tool for proving partial correctness of programs is Hoare Logic~\cite{Hoare}.
+It is a formal system that involves a collection of logical rules for meticulous reasoning about computer programs.
+The key component of this system is famous \textit{Hoare triple}, which consist of two assertions(precondition and postcondition) and a command.
+\begin{figure}[H]
+  \vspace*{-15pt}
+  \begin{center}
+    \include{img/hoare_triple.tex}
+  \end{center}
+  \vspace*{-70pt}
+\end{figure}
+Basically, the Hoare triple is statement, which denotes that
+% Украдено с википедии.
+when the precondition is met, executing the command establishes the postcondition. 
+To construct new triples and assertions, Hoare Logic introduces \textit{inference rules}, which take the form as shown in Figure~\ref{fig:hoare_rule}.
+\begin{figure}[H]
+  \vspace*{-15pt}
+  \begin{center}
+    \include{img/hoare_rule.tex}
+  \end{center}
+  \vspace*{-60pt}
+  \caption{Hoare rule notation}
+  \label{fig:hoare_rule}
+\end{figure}
+The inference rules assert the following: if all the \textit{premises} $P_1, P_2, \dotsc, P_n$ are satisfied, then the \textit{conclusion} $Q$ is also satisfied.
+In addition to the ability to create custom rules (provided that their correctness is proved), Hoare Logic includes a set of standard rules --- \textit{axioms}.
+\begin{figure}[H]
+  \vspace*{-15pt}
+  \begin{center}
+    \include{img/hoare_rule_examples.tex}
+  \end{center}
+  \vspace*{-50pt}
+  \caption[fontsize=\small]{Hoare axiom rules examples}
+\end{figure}
+
+However, despite the fact that Hoare Logic is a highly potent tool for working with imperative programming languages, 
+it has a number of limitations. The biggest one is the lack of support for pointers, 
+which is especially relevant for reasoning about imperative programs. To address this problem, 
+Hoare Logic was extended to Separation Logic by John C. Reynolds and Peter O'Hearn in 2002~\cite{reynolds}. 
+It allows for working with statements of the form $s, h \models P$, where $s$ is a store, $h$ is a heap and 
+$P$ is an assertion over the given store and heap.
+Separation Logic also introduces several new constants and operators that allow for constructing
+statements related to memory. We will consider those that are relevant for our work:
+\begin{itemize}
+  % Wikipedia
+  \item Constant \textbf{emp} --- constant, which asserts that heap is empty. For instance
+  $s, h \models \bf{emp}$ when $h$ is undefined for all adresses.
+  \item Operator $e \mapsto e'$ denotes that heap is defined at address $e$ and contains value $e'$.
+  \item Operator $s, h \models P * Q$ denotes that there exist $h_1, h_2$ such
+  and $h = h_1 \sqcup h_2$ and $s, h_1 \models P$ and $s, h_2 \models Q$.
+\end{itemize}
+
+\subsubsection{Verified Software Toolchain(VST)}
 
 \section{Implementation in C}
+In this section, we will provide a brief overview of the implementation of our C library, 
+examine examples of the most important functions, 
+and also discuss the solutions we have adopted due 
+to the use of an imperative programming language (as well as to simplify verification).
+
+\subsection{\texttt{Format} representation}
+As shown in the Figure~\ref{fig:format}, the \texttt{Format} structure consists of 5 fields. \texttt{height},
+\texttt{first\_line\_width}, \texttt{middle\_width}, \texttt{last\_line\_width} are
+natural numbers and thus can be represented as \texttt{unsigned int}(which is done in our implementation).
+However, the \texttt{to\_text} field is a function and in general can't be conveniently represented in C, so
+we had to turn to the semantics of this function.
+
+We noticed that the shift and line parameters in the original functional library exist solely for the sake of code simplicity and
+are not an essential part of the algorithm. 
+It is easy to see that given a format \texttt{G}, 
+a natural number \texttt{shift}, and a string \texttt{line}, we can recover \texttt{G.to\_text(shift, line)}
+from just \texttt{G.to\_text(0, EmptyString)}. Therefore, we made the decision to store a linked list of strings instead of the \texttt{to\_text} function. 
+\begin{figure}[H]
+\begin{minipage}{0.5\textwidth}
+\definecolor{bg}{rgb}{0.95,0.95,0.95}
+
+\begin{mdframed}[backgroundcolor=bg]
+\begin{minted}[fontsize=\small]{cpp}
+struct format {
+  unsigned int height;
+  unsigned int first_line_width;
+  unsigned int middle_width;
+  unsigned int last_line_width;
+  list *to_text;
+} typedef format;
+\end{minted}
+\end{mdframed}
+\vspace*{-35pt}
+\end{minipage}
+\begin{minipage}{0.5\textwidth}
+\definecolor{bg}{rgb}{0.95,0.95,0.95}
+
+\begin{mdframed}[backgroundcolor=bg]
+\begin{minted}[fontsize=\small]{cpp}
+struct list {
+  size_t shift;
+  char *line;
+  struct list *tail;
+} typedef list;
+\end{minted}
+\end{mdframed}
+\end{minipage}
+\vspace*{30pt}
+\caption{\texttt{Format} in C}
+\label{fig:format_C}
+\end{figure}
+Additionally, the string indendation and concatenation functions were made independent of the \texttt{format} structure.
+Implementations of \texttt{format} structure and linked list are shown in Figure~\ref{fig:format_C}.
+
+In our implementation, each combinator returns a completely new format that is not a reference to any other format, 
+as each format can be reused many times during the algorithm. And since sometimes the result of a combinator's work 
+is equal to one of the formats passed to it, it is necessary to have function, that creates a copy of a specific format. 
+Thus, the main functions for manipulating formats, in addition to printer-combinator functions, are
+\texttt{format\_copy} and \texttt{list\_copy}, which turned out to be one of the most difficult function to verify in the first part of the work.
+\begin{figure}[H]
+\begin{minipage}{0.55\textwidth}
+\definecolor{bg}{rgb}{0.95,0.95,0.95}
+
+\begin{mdframed}[backgroundcolor=bg]
+\begin{minted}[fontsize=\small]{cpp}
+list *list_copy(list *l) {
+  if (l == NULL) return NULL;
+  list *new = malloc(sizeof(list));
+  if(!new) exit(1);
+
+  list *cur = new;
+  list *l_cur = l;
+  while(true) {
+    cur->shift = l_cur->shift;
+    cur->line =
+       malloc(strlen(l_cur->line) + 1);
+    if(!cur->line) exit(1);
+    strcpy(cur->line, l_cur->line);
+    cur->tail = NULL;
+
+    if (l_cur->tail == NULL) {
+      cur = NULL;
+      break;
+    }
+    cur->tail =
+       malloc(sizeof(list));
+    if(!cur->tail) exit(1);
+    cur = cur->tail;
+    l_cur = l_cur->tail;
+  }
+  return new;
+}
+\end{minted}
+\end{mdframed}
+\vspace*{-210pt}
+\end{minipage}
+\begin{minipage}{0.46\textwidth}
+\definecolor{bg}{rgb}{0.95,0.95,0.95}
+
+\begin{mdframed}[backgroundcolor=bg]
+\begin{minted}[fontsize=\small]{cpp}
+format* format_copy(format *G) {
+  format* result =
+       malloc(sizeof(format));
+  if(!result) exit(1);
+  result->height = G->height;
+  result->first_line_width = 
+      G->first_line_width;
+  result->middle_width = 
+      G->middle_width;
+  result->last_line_width = 
+      G->last_line_width;
+  result->to_text =
+       list_copy(G->to_text);
+  return result;
+}
+\end{minted}
+\end{mdframed}
+\end{minipage}
+\vspace*{210pt}
+\caption{\texttt{list\_copy} and \texttt{format\_copy} functions}
+\label{fig:format_copy}
+\end{figure}
+Our implementations of \texttt{list\_copy} and \texttt{format\_copy} function are shown in Figure~\ref{fig:format_copy}.
+Note that the importance of implementing and verifying these functions will be particularly noticeable in the future sections
+when discussing the internal structure of the functions that implement printer combinators.
+
+\subsection{Standard library}
+Since our library is heavily focused on working with text, basic functions from the standard library, 
+in particular from \texttt{string.h}, are required for manipulating our formats. However, 
+in VST-Floyd, only the functions \texttt{malloc}, \texttt{free}, and \texttt{exit} were verified. 
+Therefore, all the functions we wanted had to be implemented by ourselves. In total, we used 3 functions 
+from standard library, let's take a closer look at each one of them:
+
+\begin{enumerate}
+  \item \texttt{strlen} --- function that returns the length of the string. 
+    The implementation of this function is shown in Figure~\ref{fig:strlen}.
+      \begin{figure}[H]
+      \definecolor{bg}{rgb}{0.95,0.95,0.95}
+
+      \begin{mdframed}[backgroundcolor=bg]
+      \begin{minted}[fontsize=\small]{cpp}
+size_t strlen(const char *str) {
+  size_t i;
+  for (i=0; ; i++)
+    if (str[i]==0) 
+      return i;
+}
+      \end{minted}
+      \end{mdframed}
+      \caption{\texttt{strlen} implementation}
+      \label{fig:strlen}
+      \end{figure}
+    The function takes a pointer to the string and iterates over it until it finds a null character. 
+    Then it returns the number of characters that have been iterated over. In our library it mostly used to
+    calculate number of bits to then put it to the \texttt{malloc} function.
+  \item \texttt{strcpy} --- function that copies the string pointed to by \texttt{src} to the buffer pointed to by \texttt{dest}. 
+    The implementation of this function is shown in Figure~\ref{fig:strcpy}.
+      \begin{figure}[H]
+      \definecolor{bg}{rgb}{0.95,0.95,0.95}
+      \begin{mdframed}[backgroundcolor=bg]
+      \begin{minted}[fontsize=\small]{cpp}
+char *strcpy(char *dest, const char *src) {
+  size_t i;
+  for(i = 0;; i++){
+    char d = src[i];
+    dest[i] = d;
+    if(d == 0) return dest;
+  }
+}
+      \end{minted}
+      \end{mdframed}
+      \caption{\texttt{strcpy} implementation}
+      \label{fig:strcpy}
+      \end{figure}
+    The function takes two pointers to the strings and iterates over the first one until it finds a null character. 
+    Then it copies the characters from the first string to the second one. 
+    In our library it is used only once --- in the function that copies the \texttt{format} structure.
+  \item \texttt{strcat} --- function that concatenates the string pointed to by \texttt{src} to the end of the string pointed to by \texttt{dest}.
+    The implementation of this function is shown in Figure~\ref{fig:strcat}.
+      \begin{figure}[H]
+      \definecolor{bg}{rgb}{0.95,0.95,0.95}
+      \begin{mdframed}[backgroundcolor=bg]
+      \begin{minted}[fontsize=\small]{cpp}
+char *strcat(char *dest, const char *src) {
+  size_t i,j;
+  for(i = 0;;i++){
+    char d = dest[i];
+    if(d == 0) break;
+  }
+  for(j = 0;;j++){
+    char d = src[j];
+    dest[i + j] = d;
+    if(d == 0) return dest;
+  }
+}
+      \end{minted}
+      \end{mdframed}
+      \caption{\texttt{strcat} implementation}
+      \label{fig:strcat}
+      \end{figure}
+    The function takes two pointers to the strings and iterates over the first one until it finds a null character. 
+    Then it iterates over the second string and copies the characters to the first one.
+    In our library it is used in \texttt{add\_beside} and \texttt{add\_fill} combinators, as they take two
+    formats as argumants and concatenate the last string of the first format and the first string of the second format.
+\end{enumerate}
+Another function that is not included in the standard C library, but which we deemed appropriate to add to this section, is the \texttt{max} function.
+      \begin{figure}[H]
+      \definecolor{bg}{rgb}{0.95,0.95,0.95}
+      \begin{mdframed}[backgroundcolor=bg]
+      \begin{minted}[fontsize=\small]{cpp}
+unsigned int max(unsigned int a, unsigned int b) {
+  if (a <= b)
+    return b;
+  return a;
+}
+      \end{minted}
+      \end{mdframed}
+      \caption{\texttt{max} implementation}
+      \label{fig:max}
+      \end{figure}
+  The \texttt{max} function is used 17 times in our library and is used to calculate new dimensions in all combinators, 
+  so its implementation and verification were necessary for the readability of our library code.
+
+\newpage
+\subsection{Combinators representation}
+Let's examine in detail the internal structure of printer combinators in our reference library.
+\begin{figure}[H]
+\definecolor{bg}{rgb}{0.95,0.95,0.95}
+\begin{mdframed}[backgroundcolor=bg]
+\begin{minted}[fontsize=\small]{coq}
+Definition add_beside (G:t) (G':t):t :=
+match G.(height), G'.(height) with
+  | O, _ => G'
+  | _, O => G
+  | _, _ => 
+    let middle_width_new :=
+       match G.(height), G'.(height) with
+       | 1,(1|2) => G.(first_line_width) + G'.(first_line_width)
+       | _,1     => G.(middle_width)
+       | 1,_     => G.(last_line_width) + G'.(middle_width)
+       | 2,_     => max (G.(last_line_width) + G'.(first_line_width))
+                        (G.(last_line_width) + G'.(middle_width))
+       | _,_     => max G.(middle_width)
+                    (max (G.(last_line_width) + G'.(first_line_width))
+                         (G.(last_line_width) + G'.(middle_width)))
+       end
+    in
+      let first_line_width_new :=
+         if (G.(height) =? 1) then 
+            G.(first_line_width) + G'.(first_line_width) 
+         else
+            G.(first_line_width)
+      in
+         T
+          (G.(height) + G'.(height) - 1)
+          first_line_width_new
+          middle_width_new 
+          (G.(last_line_width) + G'.(last_line_width))
+          (fun s t => 
+            G.(to_text) s (G'.(to_text) (s + G.(last_line_width)) t))
+end.
+\end{minted}
+\end{mdframed}
+\caption{\texttt{add\_beside} combinator in functional library}
+\label{fig:add_beside_coq}
+\end{figure}
+
+As you can see in Figure~\ref{fig:add_beside_coq}, the \texttt{add\_beside} combinator (as well as any other combinator, in general) 
+consists of several more or less independent parts. In our C implementation of the library, we tried to move as many calculations as possible 
+out of the main combinator function to make the code more concise and easier to verify. Let's go through each part of the combinator in more detail:
+\begin{enumerate}
+  \item \textbf{Beginning of the combinator}. It's easy to see (and it's actually verified in our library), that height of a format equals to zero if and only if
+  the format doesn't contain any text (i.e. our C list is empty). In that case, whenever one of the arguments of combinator has height
+  equal to zero, the second argument will be result of our combinator. 
+\begin{figure}[H]
+\definecolor{bg}{rgb}{0.95,0.95,0.95}
+\begin{mdframed}[backgroundcolor=bg]
+\begin{minted}[fontsize=\small]{cpp}
+format *add_beside(format *G, format *F) {
+  if (G->height == 0) {
+    return format_copy(F);
+  } 
+  if (F->height == 0) {
+    return format_copy(G);
+  }
+
+  t* result = malloc(sizeof(format));
+  if(!result) exit(1);
+\end{minted}
+\end{mdframed}
+\caption{Beginning of \texttt{add\_beside} function in C}
+\label{fig:zero_height_check}
+\end{figure}
+
+  In our library, this logic is supported by relatively simple conditions
+  as shown in Figure~\ref{fig:zero_height_check}.
+  Moreover, because this reasoning apply to all combinators at once, this piece of code appears in all functions: \texttt{add\_above}, \texttt{add\_beside}, and \texttt{add\_fill}. 
+  It is also worth noting that it is exactly at this point that we need \texttt{format\_copy}, because without it, 
+  we would have to return a pointer to one of the arguments, which obviously does not suit us due to the multiple reuse of the same format in different combinators.
+
+  \item \textbf{Format height calculation}. As shown in Figure~\ref{fig:add_beside_coq}, the height of the resulting format is calculated 
+  in a pretty straightforward way without any case distinction.
+  In fact, a similar formula is applicable to almost all combinators (except that in \texttt{add\_above} the height is equal to \texttt{G.height + G'.height}). 
+\begin{figure}[H]
+\definecolor{bg}{rgb}{0.95,0.95,0.95}
+\begin{mdframed}[backgroundcolor=bg]
+\begin{minted}[fontsize=\small]{cpp}
+result->height = G->height + F->height - 1;
+\end{minted}
+\end{mdframed}
+\caption{Height calculation in \texttt{add\_beside} function in C}
+\label{fig:height_calculation}
+\end{figure}
+  Thus, in all combinators, the height calculation always corresponds to only one line, and in the case of \texttt{add\_beside}, this line is shown in Figure~\ref{fig:height_calculation}.
+
+  \item \textbf{Format first line width calculation}. Here is where the differences between the combinators begin. 
+  Obviously, in \texttt{add\_above}, the first line width is always equal to the first line width of the first argument (if it is not empty). 
+  However, in \texttt{add\_beside} and \texttt{add\_fill}, the situation may be different if the height of the first argument is one. 
+  In this case, the first line widths of both arguments are added together.
+\begin{figure}[H]
+\definecolor{bg}{rgb}{0.95,0.95,0.95}
+\begin{mdframed}[backgroundcolor=bg]
+\begin{minted}[fontsize=\small]{cpp}
+unsigned int flw_add_beside(format *G, format *F) {
+  if(G->height == 0)
+    return F->first_line_width;
+  if(F->height == 0)
+    return G->first_line_width;
+
+  unsigned int first_line_width_new;
+  if (G->height == 1)
+    first_line_width_new = G->first_line_width + F->first_line_width;
+  else
+    first_line_width_new = G->first_line_width;
+  return first_line_width_new;
+}
+\end{minted}
+\end{mdframed}
+\caption{\texttt{add\_beside} first line width calculation in C}
+\label{fig:flw_calculation}
+\end{figure}
+  Now, there is a case distinction and the logic is no longer primitive. For ease of verification we put this piece of code into a separate function, as shown in Figure~\ref{fig:flw_calculation}.
+
+  \item \textbf{Middle width calculation}.
+  Now the formulas become slightly more complicated, because the value of middle line width itself has a rather complex semantics. 
+  In the case when the format height is equal to one, middle line width is equal to the width of the only line in the format. 
+  In the case when the format height is equal to two, middle line width is equal to the first line width of this format. 
+  In all other cases, middle line width is equal to the maximum width of all the lines located between the first and last lines in the format.
+\begin{figure}[H]
+\definecolor{bg}{rgb}{0.95,0.95,0.95}
+\begin{mdframed}[backgroundcolor=bg]
+\begin{minted}[fontsize=\small]{cpp}
+unsigned int mdw_add_beside(format *G, format *F) {
+  if(G->height == 0)
+    return F->middle_width;
+  if(F->height == 0)
+    return G->middle_width;
+
+  unsigned int middle_width_new;
+  if (G->height == 1 && F->height == 1) {
+    middle_width_new = G->first_line_width + F->first_line_width;
+  } else if(G->height == 1 && F->height == 2) {
+    middle_width_new = G->first_line_width + F->first_line_width;
+  } else if (F->height == 1) {
+    middle_width_new = G->middle_width;
+  } else if (G->height == 1) {
+    middle_width_new = G->last_line_width + F->middle_width;
+  } else if (G->height == 2) {
+    middle_width_new = max(G->last_line_width + F->first_line_width, 
+                            G->last_line_width + F->middle_width);
+  } else {
+    middle_width_new = max(G->middle_width,
+                          max(G->last_line_width + F->first_line_width, 
+                              G->last_line_width + F->middle_width));
+  }
+  return middle_width_new;
+}
+\end{minted}
+\end{mdframed}
+\caption{\texttt{add\_beside} middle line width calculation in C}
+\label{fig:mlw_calculation}
+\end{figure}
+As shown in Figure~\ref{fig:mlw_calculation}, the middle line width for the \texttt{add\_beside} combinator is calculated in a rather cumbersome way. 
+Due to the reasons described above, for other formats the size of the formula remains more or less the same (although its content may change).
+
+  \item \textbf{Format last line width calculation}. The situation is very similar to the calculation of height.
+  In two out of three combinators (\texttt{add\_above} and \texttt{add\_beside}), the calculation is done in one line of code.
+\begin{figure}[H]
+\definecolor{bg}{rgb}{0.95,0.95,0.95}
+\begin{mdframed}[backgroundcolor=bg]
+\begin{minted}[fontsize=\small]{cpp}
+result->last_line_width = G->last_line_width + F->last_line_width;
+\end{minted}
+\end{mdframed}
+\caption{\texttt{add\_beside} last line width calculation in C}
+\label{fig:llw_calculation}
+\end{figure}
+
+  \item \textbf{Format to\_text calculating}. This part is the most non-trivial of all. 
+  There are no formulas here, however, we need to build a complex structure, shown in Figure~\ref{fig:combinators}. 
+
+\begin{figure}[H]
+\definecolor{bg}{rgb}{0.95,0.95,0.95}
+\begin{mdframed}[backgroundcolor=bg]
+\begin{minted}[fontsize=\small]{cpp}
+list *to_text_add_beside(format *G, format *F) {
+  if(G->height == 0)
+    return list_copy(F->to_text);
+  if (F->height == 0)
+    return list_copy(G->to_text);
+  list *head = list_copy(G->to_text);                        /* a */
+  list *tail = get_list_tail(head);                          /* b */
+  list *copy_F = list_copy(F->to_text);                      /* a */
+  tail->line = 
+    line_concats(tail->line, copy_F->shift, copy_F->line);   /* c */
+  shift_list(copy_F->tail, G->last_line_width);              /* d */
+  tail->tail = copy_F->tail;                                 /* e */
+  free(copy_F);                                              /* f */
+  return head;
+}
+\end{minted}
+\end{mdframed}
+\caption{\texttt{add\_beside} \texttt{to\_text} calculation in C}
+\label{fig:to_text_calculation}
+\end{figure}
+
+  Let's break down the steps of the algorithm that might work for us:
+  \begin{enumerate}
+    \item Copy formats G and F.
+    \item Find the tail of format G. \textit{We explicitly write this as a separate step, as it is a non-trivial task in a singly linked list.}
+    \item Concatenate a string from the tail of format G with the first line of format F.
+    \item Shift all lines of format F, starting from the second,\newline by \texttt{G.last\_line\_width}.
+    \item Connect the modified G and the modified F starting from the second line.
+    \item Free the remaining unused data.
+  \end{enumerate}
+  And exactly this algorithm we implemented in our library. Its correctness was also proven, although we will talk about it in the next chapter.
+  % Дописать про get_list_tail, line_concats, shift_list
+
+  In fact, after writing a function for constructing \texttt{to\_text} in \texttt{add\_beside}, the other combinators will not cause any particular problems. 
+  It is easy to see that by replacing \texttt{G.last\_line\_width} with an arbitrary shift in the algorithm, we get \texttt{add\_fill}. 
+  Moreover, to construct the list for \texttt{add\_above}, it is only necessary to concatenate \texttt{G.to\_text} and \texttt{F.to\_text}, which is done trivially, having the \texttt{get\_list\_tail} function.
+\end{enumerate}
+
+% Thus, it remains to put it all together in the function shown in Figure 24.
+% \begin{figure}[H]
+% \definecolor{bg}{rgb}{0.95,0.95,0.95}
+% \begin{mdframed}[backgroundcolor=bg]
+% \begin{minted}[fontsize=\small]{cpp}
+% format *add_beside(format *G, format *F) {
+%   if (G->height == 0) {
+%     return format_copy(F);
+%   } 
+%   if (F->height == 0) {
+%     return format_copy(G);
+%   }
+
+%   format* result = malloc(sizeof(format));
+%   if(!result) exit(1);
+
+%   unsigned int middle_width_new = mdw_add_beside(G, F);
+%   unsigned int first_line_width_new = flw_add_beside(G, F);
+%   list *to_text_new = to_text_add_beside(G, F);
+
+%   result->height = G->height + F->height - 1;
+%   result->first_line_width = first_line_width_new;
+%   result->middle_width = middle_width_new;
+%   result->last_line_width = 
+%     G->last_line_width + F->last_line_width;
+%   result->to_text = to_text_new;
+  
+%   return result;
+% }
+% \end{minted}
+% \end{mdframed}
+% \caption{\texttt{add\_beside} implementation in C}
+% \label{fig:add_beside_C}
+% \end{figure}
 
 \section{Correctness of printer combinators}
 
@@ -305,6 +910,26 @@ and take any of the remaining formats. This format will be the final formatted v
 
 % У заключения нет номера главы
 \section*{Conclusion and future work}
+We have provided a verified implementation of a pretty-printing library in C, described in article by 
+Swierstra et al.~\cite{swierstra}. Let's go through each of our initial subgoals:
+\begin{enumerate}
+  \item We implemented the pretty-printer library~\cite{swierstra} in C. 
+  In particular, all the logic for working with formats and printer combinators has been implemented. 
+  This serves as the foundation for further extension of the library with polynomial algorithms~\cite{podkopaev,bernardy}. 
+  Additionally, we implemented a pretty-printing algorithm, making our library a comprehensive tool for working with data that requires formatting.
+  \item We have proved that our C implementation of the core operations on formats and combinators
+  satisfy its functional specification~\cite{korolihin}.
+  \item We have proved that our C implementation of the algorithm by Swierstra et al.~\cite{swierstra}
+  satisfies its functional specification~\cite{korolihin}.
+\end{enumerate}
+
+Continuing our work, we plan to provide a verified version of Anton Podkopaev and Dmitri Boulytchevs' algorithm~\cite{podkopaev} based on the printer combinators we have implemented and verified. 
+This way, we will obtain a verified polynomial algorithm that can be conveniently used as a working tool for a code pretty-printing.
+
+The source code for the thesis is available at:
+\begin{center}
+    \href{https://github.com/klimoza/verified-kisa}{\texttt{https://github.com/klimoza/verified-kisa}}
+\end{center}
 
 \setmonofont[Mapping=tex-text]{CMU Typewriter Text}
 % \bibliographystyle{plain}
